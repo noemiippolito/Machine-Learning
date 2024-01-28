@@ -1,0 +1,241 @@
+---
+title: "final resampled"
+output: 
+  html_document:
+    toc: yes
+    toc_depth: '3'
+    df_print: paged
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+date: "2023-01-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Final models with resampled data
+
+```{r  echo=TRUE}
+library(caret)
+library(pROC)
+library(mlbench)
+library(kernlab)
+library(ROSE)
+library(klaR)
+library(e1071)
+
+
+data <- read.csv("/home/noemi/Scrivania/Basket_data_analisi.csv")
+
+head(data)
+str(data)
+summary(data)
+
+data$HOME_TEAM_WINS <- factor(data$HOME_TEAM_WINS, levels = c(1, 0), labels = c("H", "A"))
+
+
+
+ G2 <- data
+
+
+
+set.seed(123)
+
+#--------------------------------------------------------------------------
+# Training and Test set
+#--------------------------------------------------------------------------
+train <- sample(1:nrow(G2), as.integer(nrow(G2)*0.8))
+data.train <- G2[train,]
+data.test <- G2[-train,]
+summary(data.train$HOME_TEAM_WINS)
+summary(data.test$HOME_TEAM_WINS)
+winning.test <- G2$HOME_TEAM_WINS[-train]
+
+head(G2[train,])
+str(G2[train,])
+
+data.train <- ovun.sample(HOME_TEAM_WINS ~ ., data.train, method="both")$data
+str(data.train)
+summary(data.train$HOME_TEAM_WINS)
+
+trControl <- trainControl(method = "cv",
+                          number = 5,
+                          classProbs = TRUE,
+                          summaryFunction = twoClassSummary)
+
+
+```
+
+
+## SVM with linear kernel 
+
+```{r  echo=TRUE}
+
+fit <- train(HOME_TEAM_WINS ~ .,
+             data = data.train,
+             method = 'svmLinear',
+             trControl = trControl,
+             preProc = c("center", "scale"))
+
+fit
+varImp(fit)
+pred <- predict(fit, newdata = data.test)
+confusionMatrix(pred, data.test$HOME_TEAM_WINS)
+
+
+pred2 <- predict(fit, newdata = data.test, type="prob")
+
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ pred2[,2], plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+
+```
+
+
+## Naive Bayes
+
+```{r  echo=TRUE}
+options(warn=-1)
+
+fit <- train(HOME_TEAM_WINS ~ .,
+             data = data.train,
+             method = 'nb',
+             trControl = trControl)
+
+fit
+plot(fit)
+varImp(fit)
+pred <- predict(fit, newdata = data.test)
+confusionMatrix(pred, data.test$HOME_TEAM_WINS)
+
+pred2 <- predict(fit, newdata = data.test, type="prob")
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ pred2[,2], plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+```
+
+
+## Random Forest
+
+```{r  echo=TRUE}
+
+fit <- train(HOME_TEAM_WINS ~ .,
+             data = data.train,
+             method = 'rf',
+             trControl = trControl)
+
+fit
+plot(fit)
+varImp(fit)
+pred <- predict(fit, newdata = data.test)
+confusionMatrix(pred, data.test$HOME_TEAM_WINS)
+
+pred2 <- predict(fit, newdata = data.test, type="prob")
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ pred2[,2], plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+
+
+```
+
+
+## Logistic Regression
+
+```{r  echo=TRUE}
+
+fit <- train(HOME_TEAM_WINS ~ .,
+             data = data.train,
+             method = 'glm',
+             family = "binomial",
+             trControl = trControl,
+             preProc = c("center", "scale"))
+
+fit
+varImp(fit)
+pred <- predict(fit, newdata = data.test)
+confusionMatrix(pred, data.test$HOME_TEAM_WINS)
+
+pred2 <- predict(fit, newdata = data.test, type="prob")
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ pred2[,2], plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+
+
+```
+
+
+
+## KNN
+
+```{r  echo=TRUE}
+
+fit <- train(HOME_TEAM_WINS ~ .,
+             data = data.train,
+             method = 'knn',
+             trControl = trControl,
+             preProc = c("center", "scale"),
+             tuneGrid = expand.grid(k = c(162,163,164)))
+
+fit
+plot(fit)
+varImp(fit)
+pred <- predict(fit, newdata = data.test)
+confusionMatrix(pred, data.test$HOME_TEAM_WINS)
+
+pred2 <- predict(fit, newdata = data.test, type="prob")
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ pred2[,2], plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+```
+
+
+## Dummy classifier
+
+```{r  echo=TRUE}
+data.train$HOME_TEAM_WINS <- as.numeric(data.train$HOME_TEAM_WINS == "H")
+data.test$HOME_TEAM_WINS <- as.numeric(data.test$HOME_TEAM_WINS == "H")
+
+
+most_frequent_class <- ifelse(mean(data.train$HOME_TEAM_WINS) >= 0.5, 1, 0)
+
+# Predict the most frequent class for all instances in the test set
+predictions <- rep(most_frequent_class, nrow(data.test))
+predictions
+data.test$HOME_TEAM_WINS
+
+#-------------------------------------------------------------------------
+# ROC curve of Random Forest with balanced data
+#-------------------------------------------------------------------------
+par(pty = "s")
+roc(data.test$HOME_TEAM_WINS ~ predictions, plot=TRUE, legacy.axes = TRUE, xlab = "False Positive Rate", ylab = "True Positive Rate", col = "#377eb8", lwd = 4, print.auc = TRUE)
+
+
+#-------------------------------------------------------------------------
+predictions <- factor(predictions, levels = c(1, 0), labels = c("H", "A"))
+data.test$HOME_TEAM_WINS <- factor(data.test$HOME_TEAM_WINS, levels = c(1, 0), labels = c("H", "A"))
+confusionMatrix(predictions, data.test$HOME_TEAM_WINS)
+
+```
